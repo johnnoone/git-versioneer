@@ -15,7 +15,10 @@ def run(*args, **kwargs):
 
 
 def parse(ref, directory, config):
-    cmd = ['git', 'describe', '--tags', '--dirty', '--always', '--long']
+    cmd = ['git', 'describe', '--tags', '--always', '--long']
+    _, stdout, _ = run('git config core.bare', cwd=directory)
+    if 'false' in stdout.decode('utf-8'):
+        cmd.append('--dirty')
     if ref:
         cmd.append(ref)
     proc, stdout, stderr = run(cmd, cwd=directory)
@@ -23,7 +26,6 @@ def parse(ref, directory, config):
         sys.exit(stderr)
     pieces = {
         'dirty': False,
-        'closest-tag': None,
         'distance': None,
         'short': None,
     }
