@@ -1,0 +1,3 @@
+include versioneer.py
+include src/_version.py
+include src/git_versioneer/_version.py
