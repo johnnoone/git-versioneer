@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import subprocess
-import sys
 from .cli import parse_args
 
 __all__ = ['run']
