@@ -1,0 +1,2 @@
+src/_version.py export-subst
+src/git_versioneer/_version.py export-subst
