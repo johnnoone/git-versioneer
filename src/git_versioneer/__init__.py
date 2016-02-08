@@ -71,7 +71,7 @@ def run(directory, ref=None, tag_prefix=None):
 def main():
     try:
         args, parser = parse_args()
-        version = run(args.directory, args.ref, args)
+        version = run(args.directory, args.ref, args.tag_prefix)
     except Exception as error:
         parser.error(error)
     print(version)
