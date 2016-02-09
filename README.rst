@@ -9,5 +9,21 @@ behind *tag v1.2.3* with the *hash afe7651*, the version will be
 
 Usage::
 
+  usage: git versioneer <commit-ish>
+
+  define version number
+
+  positional arguments:
+    commit-ish            Commit-ish object names to describe. Defaults to HEAD
+                          if omitted.
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    --directory DIRECTORY
+    --tag-prefix TAG_PREFIX
+
+Example::
+
     cd /MY/REPO
     git versioneer
+
