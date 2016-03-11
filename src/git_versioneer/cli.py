@@ -19,5 +19,9 @@ def parse_args(args=None):
                         metavar='commit-ish', nargs='?')
     parser.add_argument('--directory')
     parser.add_argument('--tag-prefix', default='v')
+    parser.add_argument('--style', choices=['pep440', 'rpm'], default='pep440')
+    parser.add_argument('--rpm', dest='style', action='store_const', const='rpm')
+    parser.add_argument('--build', default='${BUILD_NUMBER}', help='in case of rpm')
+
     args = parser.parse_args(args)
     return args, parser

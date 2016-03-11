@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+import re
 import subprocess
 from .cli import parse_args
+from .const import DEFAULT_BUILD_NUMBER
 
-__all__ = ['run']
+__all__ = ['run', 'DEFAULT_BUILD_NUMBER']
 
 
 def shell(*args, **kwargs):
@@ -16,7 +18,7 @@ def shell(*args, **kwargs):
     return proc, stdout, stderr
 
 
-def parse(directory, ref, tag_prefix):
+def parse(directory, ref, tag_prefix, defaults=None):
     cmd = ['git', 'describe', '--tags', '--always', '--long']
     if not ref:
         _, stdout, _ = shell('git config core.bare', cwd=directory)
@@ -30,8 +32,9 @@ def parse(directory, ref, tag_prefix):
     pieces = {
         'dirty': False,
         'distance': None,
-        'short': None,
+        'short': None
     }
+    pieces.update(defaults or {})
 
     description = stdout.strip().decode('utf-8')
     if description.endswith('-dirty'):
@@ -63,15 +66,45 @@ def render_pep440(pieces):
     return rendered
 
 
-def run(directory, ref=None, tag_prefix=None):
-    pieces = parse(directory, ref, tag_prefix or '')
+def render_rpm(pieces):
+    version = None
+    release = None
+    build = pieces.get('build', DEFAULT_BUILD_NUMBER)
+    distribution = pieces.get('distribution')
+
+    full = pieces.get('closest-tag', '0.0.0')
+    matches = re.match('(?P<version>\d+\.\d+\.\d+)[.-]?(?P<rel>.+)$', full)
+    if matches:
+        version, rel = matches.group('version'), matches.group('rel')
+        if any(rel.startswith(tag) for tag in ['a', 'b', 'pre', 'rc']):
+            release = '0.%s.%s' % (build, rel)
+        else:
+            release = '%s.%s' % (build, rel)
+    else:
+        version = full
+        release = '%s' % build
+
+    rendered = '%s-%s' % (version, release)
+
+    if distribution:
+        rendered += '.%s' % distribution
+    return rendered
+
+
+def run(directory, ref=None, tag_prefix=None, style=None, **defaults):
+    pieces = parse(directory, ref, tag_prefix or '', defaults=defaults)
+    if style == 'rpm':
+        return render_rpm(pieces)
     return render_pep440(pieces)
 
 
 def main():
     try:
         args, parser = parse_args()
-        version = run(args.directory, args.ref, args.tag_prefix)
+        defaults = {
+            'build': args.build
+        }
+        version = run(args.directory, args.ref, args.tag_prefix, **defaults)
     except Exception as error:
         parser.error(error)
     print(version)

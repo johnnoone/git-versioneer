@@ -13,6 +13,8 @@ Test against python2.7:
   script:
     - python -m pip install -r requirements-tests.txt
     - py.test tests/ --cov git_versioneer --flake8 --cov-report term-missing
+  except:
+    - rr-cache
 
 Test against python3.5:
   tags:
@@ -20,6 +22,8 @@ Test against python3.5:
   script:
     - python -m pip install -r requirements-tests.txt
     - py.test tests/ --cov git_versioneer --flake8 --cov-report term-missing
+  except:
+    - rr-cache
 
 Build executable:
   stage: publish
