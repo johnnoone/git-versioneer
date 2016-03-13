@@ -7,5 +7,10 @@ setup(
     name='git-versioneer',
     version=versioneer.get_version(),
     package_dir={'': 'src'},
-    cmdclass=versioneer.get_cmdclass()
+    cmdclass=versioneer.get_cmdclass(),
+    entry_points={
+        'console_scripts': [
+            'git-versioneer = git_versioneer:main'
+        ],
+    }
 )
