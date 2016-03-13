@@ -30,8 +30,3 @@ def test_dirty(dirty):
     version = run(dirty, 'HEAD', tag_prefix='v')
     assert version.startswith('0.0.1+1.g')
     assert not version.endswith('.dirty')
-
-
-def test_cli():
-    args, _ = cli.parse_args(['--directory', '/foo/bar'])
-    assert args.directory == '/foo/bar'

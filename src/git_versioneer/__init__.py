@@ -3,9 +3,12 @@
 import re
 import subprocess
 from .cli import parse_args
-from .const import DEFAULT_BUILD_NUMBER
+from .const import DEFAULT_BUILD_NUMBER, DEFAULT_STYLE
+from ._version import get_versions
 
-__all__ = ['run', 'DEFAULT_BUILD_NUMBER']
+__all__ = ['run', 'DEFAULT_BUILD_NUMBER', 'DEFAULT_STYLE']
+__version__ = get_versions()['version']
+del get_versions
 
 
 def shell(*args, **kwargs):
@@ -18,45 +21,77 @@ def shell(*args, **kwargs):
     return proc, stdout, stderr
 
 
-def parse(directory, ref, tag_prefix, defaults=None):
-    cmd = ['git', 'describe', '--tags', '--always', '--long']
-    if not ref:
-        _, stdout, _ = shell('git config core.bare', cwd=directory)
-        if 'false' in stdout.decode('utf-8'):
-            cmd.append('--dirty')
-    else:
-        cmd.append(ref)
-    proc, stdout, stderr = shell(cmd, cwd=directory)
-    if proc.returncode:
-        raise Exception(stderr)
-    pieces = {
-        'dirty': False,
-        'distance': None,
-        'short': None
-    }
-    pieces.update(defaults or {})
+class Parser(object):
 
-    description = stdout.strip().decode('utf-8')
-    if description.endswith('-dirty'):
-        description = description[:-6]
-        pieces['dirty'] = True
-    if '-g' in description:
-        # in the format: TAG-DISTANCE-gSHORT
-        a, b, c = description.rsplit('-', 2)
-        if a.startswith(tag_prefix):
-            pieces['closest-tag'] = a[len(tag_prefix):]
-        pieces['distance'] = int(b)
-        pieces['short'] = c[1:]
-    else:
-        # in the format: SHORT
-        cmd = ['git', 'rev-list', 'HEAD', '--count']
+    def __init__(self, tag_prefix):
+        self.tag_prefix = tag_prefix
+
+    def from_git(self, directory, ref):
+        cmd = ['git', 'describe', '--tags', '--always', '--long']
+        if not ref:
+            _, stdout, _ = shell('git config core.bare', cwd=directory)
+            if 'false' in stdout.decode('utf-8'):
+                cmd.append('--dirty')
+        else:
+            cmd.append(ref)
         proc, stdout, stderr = shell(cmd, cwd=directory)
-        pieces['short'] = description
-        pieces['distance'] = int(stdout.strip().decode('utf-8'))
-    return pieces
+        if proc.returncode:
+            raise Exception(stderr)
+
+        description = stdout.strip().decode('utf-8')
+        # in the format: TAG-DISTANCE-gSHORT
+        pieces = self.parse_description(description)
+
+        # in the format: SHORT
+        if not pieces['short']:
+            # in the format: SHORT
+            cmd = ['git', 'rev-list', 'HEAD', '--count']
+            proc, stdout, stderr = shell(cmd, cwd=directory)
+            pieces['short'] = description
+            pieces['distance'] = int(stdout.strip().decode('utf-8'))
+        return pieces
+
+    def from_description(self, description):
+        pieces = self.parse_description(description)
+        if not pieces['short']:
+            pieces['short'] = description
+        return pieces
+
+    def parse_description(self, description):
+        """Parse git-describe output.
+
+        Parameters:
+            description (str): in the format: TAG-DISTANCE-gSHORT
+        Returns:
+            dict: parsed pieces
+
+        """
+        pieces = {
+            'dirty': False,
+            'distance': None,
+            'short': None
+        }
+        if description.endswith('-dirty'):
+            description = description[:-6]
+            pieces['dirty'] = True
+        if '-g' in description:
+            # in the format: TAG-DISTANCE-gSHORT
+            a, b, c = description.rsplit('-', 2)
+            if a.startswith(self.tag_prefix):
+                pieces['closest-tag'] = a[len(self.tag_prefix):]
+            pieces['distance'] = int(b)
+            pieces['short'] = c[1:]
+        return pieces
 
 
-def render_pep440(pieces):
+def parse(directory, ref, tag_prefix, description=None):
+    parser = Parser(tag_prefix)
+    if description:
+        return parser.from_description(description)
+    return parser.from_git(directory, ref)
+
+
+def render_pep440(pieces, opts):
     rendered = pieces.get('closest-tag', '0+untagged')
     if pieces["distance"] or pieces["dirty"]:
         rendered += '.' if '+' in rendered else '+'
@@ -66,11 +101,11 @@ def render_pep440(pieces):
     return rendered
 
 
-def render_rpm(pieces):
+def render_rpm(pieces, opts):
     version = None
     release = None
-    build = pieces.get('build', DEFAULT_BUILD_NUMBER)
-    distribution = pieces.get('distribution')
+    build = opts.get('build', DEFAULT_BUILD_NUMBER)
+    distribution = opts.get('distribution')
 
     full = pieces.get('closest-tag', '0.0.0')
     matches = re.match('(?P<version>\d+\.\d+\.\d+)[.-]?(?P<rel>.+)$', full)
@@ -91,25 +126,26 @@ def render_rpm(pieces):
     return rendered
 
 
-def run(directory, ref=None, tag_prefix=None, style=None, **defaults):
-    pieces = parse(directory, ref, tag_prefix or '', defaults=defaults)
+def run(directory, ref=None, tag_prefix=None, style=None,
+        description=None, **opts):
+    pieces = parse(directory, ref, tag_prefix or '', description=description)
     if style == 'rpm':
-        return render_rpm(pieces)
-    return render_pep440(pieces)
+        return render_rpm(pieces, opts)
+    return render_pep440(pieces, opts)
 
 
 def main():
     try:
         args, parser = parse_args()
-        defaults = {
-            'build': args.build
+        kwargs = {
+            'directory': args.directory,
+            'ref': args.ref,
+            'tag_prefix': args.tag_prefix,
+            'build': args.build,
+            'style': args.style,
+            'description': args.description
         }
-        version = run(args.directory, args.ref, args.tag_prefix, **defaults)
+        version = run(**kwargs)
     except Exception as error:
         parser.error(error)
     print(version)
-
-
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
